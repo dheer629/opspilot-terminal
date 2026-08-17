@@ -1,0 +1,59 @@
+name: Sentinel validation
+
+on:
+  push:
+    paths:
+      - DevOps_K8s_Sentinel_PRODUCTION_READY_FINAL.sh
+      - .github/workflows/sentinel-validation.yml
+  pull_request:
+    paths:
+      - DevOps_K8s_Sentinel_PRODUCTION_READY_FINAL.sh
+      - .github/workflows/sentinel-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sentinel-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SENTINEL_SCRIPT: DevOps_K8s_Sentinel_PRODUCTION_READY_FINAL.sh
+      EXPORT_DIR: ${{ runner.temp }}/sentinel-exports
+      HOME: ${{ runner.temp }}/sentinel-home
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare isolated validation directories
+        run: |
+          mkdir -p "$EXPORT_DIR" "$HOME"
+          chmod 700 "$EXPORT_DIR" "$HOME"
+          chmod 750 "$SENTINEL_SCRIPT"
+
+      - name: Bash syntax
+        run: bash -n "$SENTINEL_SCRIPT"
+
+      - name: v367.8 portable, BRO, and discovery contracts
+        run: bash "$SENTINEL_SCRIPT" --v3678-selftest
+
+      - name: Complete local self-tests
+        run: bash "$SENTINEL_SCRIPT" --selftest-all
+
+      - name: Local validation and security checks
+        run: |
+          bash "$SENTINEL_SCRIPT" --validate-all-local
+          bash "$SENTINEL_SCRIPT" --security-selftest
+
+      - name: Full mocked regression suite
+        run: bash "$SENTINEL_SCRIPT" --validate-v366
+
+      - name: Bash 4.4 compatibility
+        env:
+          BASH_COMPAT: "4.4"
+        run: bash "$SENTINEL_SCRIPT" --selftest-all
